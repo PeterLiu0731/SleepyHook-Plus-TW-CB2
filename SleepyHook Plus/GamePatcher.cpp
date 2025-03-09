@@ -72,6 +72,10 @@ void GamePatcher() {
 		WriteBytes((void*)(dwHardWare + 0x2429D9), (void*)"\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x8B\x4E\x04\x90\x90\x90", 16); //Disable SSL Connect Log write
 	}
 
+	// Clear Reply Error Code
+	// Fixed the bug that you have to restart the game to login again after entering the wrong account or password
+	WriteBytes((void*)(dwHardWare + 0xF7EB2), (void*)"\x90\x90\x90\x90\x90\x90", 6);
+
 
 
 	//Patch SharedDict Check
