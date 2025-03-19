@@ -3,6 +3,8 @@
 #include "MetaHook.h"
 #include "Utils.h"
 
+DWORD WINAPI GameUI_Patcher();
+
 unsigned long m_iHostIPAddress;
 unsigned short m_iHostPort;
 
@@ -52,6 +54,9 @@ void GamePatcher() {
 	Utils::ConsolePrint("Host IP: %s\n", m_sHostIPAddress.c_str());
 	Utils::ConsolePrint("Host Port: %d\n", m_iHostPort);
 	*/
+
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GameUI_Patcher, 0, 0, 0);
+
 	std::string sIpAddr = CommandLine()->GetParmValue("-ip");
 	unsigned short nPort = CommandLine()->GetParmValue("-port", 0);
 	m_iHostIPAddress = inet_addr(sIpAddr.c_str());
@@ -86,4 +91,21 @@ void GamePatcher() {
 
 	//Patch SharedDict Check
 	//MH_InlineHook((void*)(dwHardWare + 0xC0D0D8), HookFuncs::SharedDictCheck_Hook, (void*&)HookFuncs::oSharedDictCheck);
+}
+
+DWORD WINAPI GameUI_Patcher() {
+	DWORD dwGameUI = NULL;
+	while (true) {
+		dwGameUI = (DWORD)GetModuleHandleA("GameUI.dll");
+		if (dwGameUI)
+			break;
+		Sleep(0);
+	}
+	/*
+	CSOTaskbar::CSOTaskbar checks the Lang command, and if it is 'tw' or 'chn', it will disable some UI. Ex: Shop, Inventory, Clan etc.
+	This method is very simple and straightforward. You can also directly modify the binary file of GameUI.dll, but here we choose not to alter the clean official files.
+	*/
+	WriteBytes((void*)(dwGameUI + 0x1213FC), (void*)"\x00\x00\x00", 3); //tw
+	WriteBytes((void*)(dwGameUI + 0x121400), (void*)"\x00\x00\x00", 3); //chn
+	return 1;
 }
