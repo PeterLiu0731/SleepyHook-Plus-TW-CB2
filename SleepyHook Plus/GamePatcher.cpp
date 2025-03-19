@@ -3,8 +3,8 @@
 #include "MetaHook.h"
 #include "Utils.h"
 
-std::string m_sHostIPAddress;
-int m_iHostPort;
+unsigned long m_iHostIPAddress;
+unsigned short m_iHostPort;
 
 void WriteBytes(PVOID address, void* val, int bytes) {
 	DWORD d, ds;
@@ -25,16 +25,19 @@ namespace HookFuncs
 {
 	int(__thiscall* oIpRedirector)(void* pThis, unsigned long ip, u_short port, char a4);
 	int __fastcall IpRedirector(void* pThis, void* edx, unsigned long ip, u_short port, char a4) {
-		auto ulIP = inet_addr(m_sHostIPAddress.c_str());
-		auto usPort = ntohs(m_iHostPort);
-		return oIpRedirector(pThis, ulIP, usPort, a4);
+		return oIpRedirector(pThis, m_iHostIPAddress, m_iHostPort, a4);
 	}
 
 	int(__cdecl* oIpRedirector2)(unsigned long ip, u_short port);
 	int __cdecl IpRedirector2(unsigned long ip, u_short port) {
-		auto ulIP = inet_addr(m_sHostIPAddress.c_str());
-		auto usPort = ntohs(m_iHostPort);
-		return oIpRedirector2(ulIP, usPort);
+		return oIpRedirector2(m_iHostIPAddress, m_iHostPort);
+	}
+
+	char(__thiscall* oPacketTransfer)(void* pThis, void* packetBuffer, int packetSize);
+	char __fastcall PacketTransfer(void* pThis, void* edx, void* packetBuffer, int packetSize) {
+		m_iHostIPAddress = *((unsigned long*)((char*)packetBuffer));
+		m_iHostPort = htons(*((unsigned short*)((char*)packetBuffer + 4)));
+		return oPacketTransfer(pThis, packetBuffer, packetSize);
 	}
 
 	int(__thiscall* oSharedDictCheck)(int* thisptr, char* a2);
@@ -50,15 +53,18 @@ void GamePatcher() {
 	Utils::ConsolePrint("Host Port: %d\n", m_iHostPort);
 	*/
 	std::string sIpAddr = CommandLine()->GetParmValue("-ip");
-	int nPort = CommandLine()->GetParmValue("-port", 0);
-	m_sHostIPAddress = sIpAddr;
-	m_iHostPort = nPort;
+	unsigned short nPort = CommandLine()->GetParmValue("-port", 0);
+	m_iHostIPAddress = inet_addr(sIpAddr.c_str());
+	m_iHostPort = htons(nPort);
 
 	DWORD dwHardWare = (DWORD)GetModuleHandleA("hw.dll");
 
 	//Ip Redirector
 	MH_InlineHook((void*)(dwHardWare + 0x242840), HookFuncs::IpRedirector, (void*&)HookFuncs::oIpRedirector);
 	MH_InlineHook((void*)(dwHardWare + 0xE0A40), HookFuncs::IpRedirector2, (void*&)HookFuncs::oIpRedirector2);
+
+	// Packet_Transfer
+	MH_InlineHook((void*)(dwHardWare + 0x14DE10), HookFuncs::PacketTransfer, (void*&)HookFuncs::oPacketTransfer);
 
 	//GameGuard Bypass
 	MH_InlineHook((void*)(dwHardWare + 0x248070), GameGuard::GetStateCode, (void*&)GameGuard::oGetStateCode);
