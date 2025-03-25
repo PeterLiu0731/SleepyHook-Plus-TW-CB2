@@ -46,23 +46,37 @@ namespace HookFuncs
 	int __fastcall SharedDictCheck_Hook(int* thisptr, void* edx, char* a2) {
 		return 0;
 	}
+
+	int(__thiscall* oIV_DecryptPacket)(void* pNetworkHandler, char* buffer, int maxBufferSize, int* bufferLen, BOOL bWaitHandshake);
+	int __fastcall IV_DecryptPacket_hook(void* pNetworkHandler, void* edx, char* outBuffer, int maxBufferSize, int* outBufferLength, BOOL bWaitHandshake) {
+		// pNetworkHandler: g_SocketManager->m_pNetworkHandler (Offset 0x04)
+		int errorCode = oIV_DecryptPacket(pNetworkHandler, outBuffer, maxBufferSize, outBufferLength, bWaitHandshake);
+		if (bWaitHandshake) // ~SERVERCONNECTED\n\0
+			return errorCode;
+		short packetId = reinterpret_cast<short*>(outBuffer)[0];
+		unsigned char* buffer = reinterpret_cast<unsigned char*>(outBuffer);
+		Utils::ConsolePrint("[PacketID: %02d] Data: ", packetId);
+		for (int i = 0; i < *outBufferLength; i++) {
+			Utils::ConsolePrint("%02X ", buffer[i]);
+		}
+		Utils::ConsolePrint("\n");
+		return errorCode;
+	}
 }
 
 void GamePatcher() {
-	/*
-	Utils::AttachConsole();
-	Utils::ConsolePrint("Host IP: %s\n", m_sHostIPAddress.c_str());
-	Utils::ConsolePrint("Host Port: %d\n", m_iHostPort);
-	*/
 
+	DWORD dwHardWare = (DWORD)GetModuleHandleA("hw.dll");
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GameUI_Patcher, 0, 0, 0);
+	if (CommandLine()->CheckParm("-dbg") != NULL) {
+		Utils::AttachConsole();
+		MH_InlineHook((void*)(dwHardWare + 0x244BF0), HookFuncs::IV_DecryptPacket_hook, (void*&)HookFuncs::oIV_DecryptPacket);
+	}
 
 	std::string sIpAddr = CommandLine()->GetParmValue("-ip");
 	unsigned short nPort = CommandLine()->GetParmValue("-port", 0);
 	m_iHostIPAddress = inet_addr(sIpAddr.c_str());
 	m_iHostPort = htons(nPort);
-
-	DWORD dwHardWare = (DWORD)GetModuleHandleA("hw.dll");
 
 	//Ip Redirector
 	MH_InlineHook((void*)(dwHardWare + 0x242840), HookFuncs::IpRedirector, (void*&)HookFuncs::oIpRedirector);
@@ -86,8 +100,6 @@ void GamePatcher() {
 	// Clear Reply Error Code
 	// Fixed the bug that you have to restart the game to login again after entering the wrong account or password
 	WriteBytes((void*)(dwHardWare + 0xF7EB2), (void*)"\x90\x90\x90\x90\x90\x90", 6);
-
-
 
 	//Patch SharedDict Check
 	//MH_InlineHook((void*)(dwHardWare + 0xC0D0D8), HookFuncs::SharedDictCheck_Hook, (void*&)HookFuncs::oSharedDictCheck);
