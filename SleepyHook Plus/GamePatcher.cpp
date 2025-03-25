@@ -53,7 +53,7 @@ namespace HookFuncs
 		int errorCode = oIV_DecryptPacket(pNetworkHandler, outBuffer, maxBufferSize, outBufferLength, bWaitHandshake);
 		if (bWaitHandshake) // ~SERVERCONNECTED\n\0
 			return errorCode;
-		short packetId = reinterpret_cast<short*>(outBuffer)[0];
+		unsigned char packetId = reinterpret_cast<unsigned char*>(outBuffer)[0];
 		unsigned char* buffer = reinterpret_cast<unsigned char*>(outBuffer);
 		Utils::ConsolePrint("[PacketID: %02d] Data: ", packetId);
 		for (int i = 0; i < *outBufferLength; i++) {
